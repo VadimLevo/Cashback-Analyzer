@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Анализатор кэшбэка</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; color: #333; padding: 20px; max-width: 900px; margin: 0 auto; }
+        h1 { color: #2c3e50; display: inline-block; margin-right: 15px; }
+        .month-input { padding: 8px; font-size: 18px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; }
+        
+        .bank-card { background: #fff; border-radius: 8px; padding: 15px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-top: 4px solid #3498db; }
+        .bank-header { display: flex; flex-wrap: wrap; gap: 15px; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
+        .bank-header input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
+        
+        .category-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; align-items: center; background: #fdfdfd; padding: 10px; border: 1px solid #eee; border-radius: 6px; }
+        .category-row input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
+        .c-name { flex: 2; min-width: 150px; }
+        .c-percent { width: 60px; }
+        .c-group { flex: 1.5; min-width: 120px; }
+        .c-money { width: 110px; }
+        .c-comment { flex: 3; min-width: 180px; }
+        
+        button { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; transition: 0.2s; font-weight: 600; }
+        .btn-add { background: #e0f7fa; color: #00838f; border: 1px solid #b2ebf2; }
+        .btn-add:hover { background: #b2ebf2; }
+        .btn-analyze { background: #3498db; color: white; font-size: 16px; width: 100%; padding: 14px; margin-top: 20px; box-shadow: 0 4px 6px rgba(52, 152, 219, 0.2); }
+        .btn-analyze:hover { background: #2980b9; }
+        .btn-remove { background: #ffebee; color: #c62828; padding: 6px 10px; border: 1px solid #ffcdd2; }
+        .btn-remove:hover { background: #ffcdd2; }
+        .btn-report { background: #2ecc71; color: white; font-size: 16px; padding: 12px 24px; margin-top: 20px; display: block; width: 100%; }
+        .btn-report:hover { background: #27ae60; }
+        
+        #results, #memo-report { margin-top: 30px; display: none; }
+        .result-group { background: #fff; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-left: 4px solid #f39c12; }
+        .offer-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #f0f0f0; }
+        .offer-row.selected { background-color: #f0fdf4; border-left: 4px solid #2ecc71; }
+        .offer-row.disabled { opacity: 0.4; pointer-events: none; }
+        .offer-details { font-size: 12px; color: #7f8c8d; margin-top: 4px; }
+        
+        .memo-card { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; }
+        .memo-category-section { margin-bottom: 20px; }
+        .memo-category-title { font-size: 18px; color: #2c3e50; border-bottom: 2px solid #2ecc71; padding-bottom: 5px; margin-bottom: 10px; font-weight: bold; }
+        .memo-item { padding: 10px; border-left: 3px solid #3498db; background: #f9fbfd; margin-bottom: 8px; border-radius: 0 4px 4px 0; }
+        .memo-bank-title { font-weight: bold; font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
+        .memo-percent { color: #e67e22; font-size: 18px; font-weight: bold; }
+        .memo-meta { font-size: 13px; color: #555; margin-top: 5px; }
+        .memo-comment { font-size: 13px; color: #d35400; font-style: italic; margin-top: 4px; }
+
+        .export-panel { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap; }
+        .btn-export { background: #ecf0f1; color: #2c3e50; border: 1px solid #bdc3c7; padding: 8px 15px; }
+        .btn-export:hover { background: #bdc3c7; }
+
+        .dict-manager { margin-top: 40px; padding: 15px; background: #e8f4f8; border-radius: 8px; border: 1px solid #d4e6f1; }
+        .dict-manager h3 { margin-top: 0; font-size: 16px; color: #2980b9; margin-bottom: 10px; }
+        .dict-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 5px; margin-bottom: 15px; }
+        .dict-tag { display: inline-flex; align-items: center; background: #fff; border: 1px solid #bdc3c7; padding: 4px 8px; border-radius: 16px; font-size: 13px; color: #34495e; }
+        .dict-tag button { background: none; border: none; color: #e74c3c; cursor: pointer; padding: 0 0 0 6px; font-weight: bold; font-size: 14px; }
+
+        #toast { visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center; border-radius: 4px; padding: 12px; position: fixed; z-index: 1; left: 50%; bottom: 30px; transform: translateX(-50%); font-size: 15px; transition: 0.3s; opacity: 0; }
+        #toast.show { visibility: visible; opacity: 1; }
+
+        /* Экран для Drag and Drop */
+        #drop-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(52, 152, 219, 0.95); color: white;
+            display: none; justify-content: center; align-items: center; flex-direction: column;
+            z-index: 9999; border: 10px dashed #fff; box-sizing: border-box; font-size: 24px; text-align: center;
+        }
+        #drop-overlay.active { display: flex; }
+
+        @media print {
+            body { background: white; padding: 0; margin: 0; font-size: 20px !important; color: #000; font-family: sans-serif; }
+            #setup-screen, #results, .export-panel, button { display: none !important; }
+            #memo-report { display: block !important; margin: 0; width: 100%; }
+            .memo-card { box-shadow: none; max-width: 100%; padding: 0; margin: 0; border: none; }
+            h2 { font-size: 24px; margin: 0 0 8px 0; padding: 0; text-align: left !important; border-bottom: 2px solid #000; padding-bottom: 5px; }
+            .memo-category-section { margin-bottom: 10px; page-break-inside: avoid; }
+            .memo-category-title { font-size: 22px; color: #000; border-bottom: 1px solid #000; padding-bottom: 2px; margin-bottom: 4px; font-weight: bold; }
+            .memo-item { padding: 4px 0; border: none; border-bottom: 1px dashed #ccc; background: transparent; margin-bottom: 0; display: flex; flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+            .memo-bank-title { justify-content: flex-start; gap: 8px; font-size: 20px; font-weight: bold; width: auto; }
+            .memo-percent { font-size: 20px; color: #000; font-weight: bold; }
+            .memo-meta { font-size: 18px; color: #333; margin: 0; }
+            .memo-comment { font-size: 18px; color: #000; margin: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <datalist id="saved-banks"></datalist>
+    <datalist id="saved-cats"></datalist>
+    <datalist id="saved-groups"></datalist>
+
+    <div id="drop-overlay">
+        <div style="font-size: 60px; margin-bottom: 20px;">📄</div>
+        <div>Отпустите CSV файл здесь<br><span style="font-size: 16px; opacity: 0.8;">для загрузки категорий</span></div>
+    </div>
+
+    <div id="setup-screen">
+        <div>
+            <h1>Анализатор кэшбэка на</h1>
+            <input type="month" id="report-month" class="month-input">
+        </div>
+        
+        <div id="banks-container" style="margin-top: 20px;"></div>
+        
+        <button class="btn-add" onclick="addBank()" style="font-size: 16px; padding: 10px 20px;">+ Добавить банк</button>
+        <button class="btn-analyze" onclick="analyze()">Сравнить категории</button>
+
+        <div class="dict-manager" id="dictionary-section" style="display: none;">
+            <h3>Словарь профилей (автоподстановка лимитов)</h3>
+            <div style="font-size: 14px; font-weight: bold; color: #555;">Банки:</div><div class="dict-tags" id="dict-banks"></div>
+            <div style="font-size: 14px; font-weight: bold; color: #555;">Названия категорий:</div><div class="dict-tags" id="dict-cats"></div>
+            <div style="font-size: 14px; font-weight: bold; color: #555;">Группы:</div><div class="dict-tags" id="dict-groups"></div>
+        </div>
+    </div>
+
+    <div id="results">
+        <button class="btn-remove" onclick="backToSetup()" style="margin-bottom: 15px;">← Назад к редактированию</button>
+        <h2>Сравнение и выбор</h2>
+        <div id="bank-limits-status" style="font-weight: bold; margin-bottom: 15px; color: #34495e;"></div>
+        <div id="recommendations-container"></div>
+        <button class="btn-report" onclick="generateReport()">Сформировать памятку</button>
+    </div>
+
+    <div id="memo-report">
+        <div class="export-panel">
+            <button class="btn-remove" onclick="backToResults()">← Назад</button>
+            <button class="btn-export" onclick="copyMemoText()">📋 Скопировать текст</button>
+            <button class="btn-export" onclick="window.print()">🖨 Сохранить PDF (Для телефона)</button>
+            <button class="btn-export" onclick="exportToCSV()">📊 Экспорт в Excel</button>
+        </div>
+        <div class="memo-card" id="memo-content"></div>
+    </div>
+
+    <div id="toast"></div>
+
+<script>
+    let bankIdCounter = 0;
+    let catIdCounter = 0;
+    let appState = { banks: [], selections: new Set(), month: '', memoData: [] };
+
+    window.onload = () => {
+        const now = new Date();
+        const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        const year = nextMonthDate.getFullYear();
+        const month = String(nextMonthDate.getMonth() + 1).padStart(2, '0');
+        document.getElementById('report-month').value = `${year}-${month}`;
+        updateDatalists();
+        addBank();
+    };
+
+    function showToast(message) {
+        const toast = document.getElementById("toast");
+        toast.innerText = message;
+        toast.className = "show";
+        setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 3000);
+    }
+
+    // --- ЛОГИКА DRAG AND DROP ИМПОРТА ---
+    let dragCounter = 0;
+    window.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        dragCounter++;
+        document.getElementById('drop-overlay').classList.add('active');
+    });
+
+    window.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dragCounter--;
+        if (dragCounter === 0) {
+            document.getElementById('drop-overlay').classList.remove('active');
+        }
+    });
+
+    window.addEventListener('dragover', (e) => { e.preventDefault(); });
+
+    window.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dragCounter = 0;
+        document.getElementById('drop-overlay').classList.remove('active');
+        
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const file = e.dataTransfer.files[0];
+            if (file.name.endsWith('.csv')) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    processCSVImport(event.target.result);
+                };
+                reader.readAsText(file);
+            } else {
+                showToast('Пожалуйста, перетащите файл в формате .csv');
+            }
+        }
+    });
+
+    function processCSVImport(csvText) {
+        try {
+            // Очищаем от Windows-переносов \r и разбиваем по строкам
+            const lines = csvText.replace(/\r/g, '').trim().split('\n');
+            let parsedData = [];
+            
+            // Начинаем с 1, чтобы пропустить строку заголовков
+            for (let i = 1; i < lines.length; i++) {
+                if (!lines[i].trim()) continue; // Пропуск пустых строк
+                
+                const row = lines[i].split(';');
+                if (row.length >= 6) {
+                    // Склеиваем комментарий обратно, если внутри него случайно оказались ';'
+                    let comment = row.slice(5).join(';');
+                    
+                    parsedData.push({
+                        cat: row[0].replace(/^"|"$/g, '').replace(/""/g, '"'),
+                        bank: row[1].replace(/^"|"$/g, '').replace(/""/g, '"'),
+                        percent: row[2].replace(/^"|"$/g, '').trim(),
+                        min: row[3].replace(/^"|"$/g, '').trim(),
+                        max: row[4].replace(/^"|"$/g, '').trim(),
+                        comment: comment.replace(/^"|"$/g, '').replace(/""/g, '"')
+                    });
+                }
+            }
+
+            if (parsedData.length === 0) {
+                showToast("Не удалось найти данные. Проверьте структуру файла.");
+                return;
+            }
+
+            // Очищаем интерфейс
+            document.getElementById('banks-container').innerHTML = '';
+            let banksMap = {}; 
+            // Берем профили банков из памяти, чтобы подтянуть лимиты, которых нет в CSV
+            let banksData = JSON.parse(localStorage.getItem('cb_banks_data') || '{}');
+
+            parsedData.forEach(row => {
+                let currentBankId;
+                
+                // Если банк еще не добавлен на экран — добавляем
+                if (!banksMap[row.bank]) {
+                    addBank(); // Теперь эта функция исправно создает банк И пустую категорию
+                    currentBankId = bankIdCounter;
+                    banksMap[row.bank] = currentBankId;
+                    
+                    let bankInput = document.getElementById(`bank-name-${currentBankId}`);
+                    bankInput.value = row.bank;
+                    
+                    // Восстанавливаем лимиты банка из памяти (если они есть)
+                    if(banksData[row.bank]) {
+                        if(banksData[row.bank].slots) document.getElementById(`bank-slots-${currentBankId}`).value = banksData[row.bank].slots;
+                        if(banksData[row.bank].min) document.getElementById(`bank-min-${currentBankId}`).value = banksData[row.bank].min;
+                        if(banksData[row.bank].max) document.getElementById(`bank-max-${currentBankId}`).value = banksData[row.bank].max;
+                    }
+                    
+                    // Заполняем первую (автоматически созданную) строку категории
+                    let catsContainer = document.getElementById(`categories-${currentBankId}`);
+                    let catRow = catsContainer.querySelector('.category-row');
+                    
+                    fillCategoryRowFromCSV(catRow, row, banksData);
+                } else {
+                    // Если банк уже есть — просто добавляем к нему новую категорию
+                    currentBankId = banksMap[row.bank];
+                    addCategory(currentBankId);
+                    let catsRows = document.getElementById(`categories-${currentBankId}`).querySelectorAll('.category-row');
+                    fillCategoryRowFromCSV(catsRows[catsRows.length - 1], row, banksData);
+                }
+            });
+
+            // Один раз синхронизируем всё введенное с памятью (чтобы обновить словари)
+            updateDatalistsFromInputs();
+            showToast(`Успешно загружено категорий: ${parsedData.length}`);
+
+        } catch (error) {
+            console.error("Ошибка при разборе CSV:", error);
+            showToast("Произошла ошибка при загрузке. Проверьте формат файла.");
+        }
+    }
+
+    function fillCategoryRowFromCSV(rowEl, rowData, banksData) {
+        if (!rowEl) return;
+        
+        rowEl.querySelector('.c-name').value = rowData.cat;
+        rowEl.querySelector('.c-percent').value = rowData.percent;
+        rowEl.querySelector('.c-min').value = rowData.min;
+        rowEl.querySelector('.c-max').value = rowData.max;
+        rowEl.querySelector('.c-comment').value = rowData.comment;
+        
+        // Пытаемся восстановить поле "Группа" из памяти, так как в CSV его нет
+        if(banksData[rowData.bank] && banksData[rowData.bank].categories && banksData[rowData.bank].categories[rowData.cat]) {
+            let data = banksData[rowData.bank].categories[rowData.cat];
+            if(data.group && !rowEl.querySelector('.c-group').value) {
+                rowEl.querySelector('.c-group').value = data.group;
+            }
+        }
+    }
+    // --- КОНЕЦ ЛОГИКИ DRAG AND DROP ---
+
+    function updateDatalists() {
+        const banksData = JSON.parse(localStorage.getItem('cb_banks_data') || '{}');
+        const catsList = JSON.parse(localStorage.getItem('cb_cats_list') || localStorage.getItem('cb_cats') || '[]');
+        const groups = JSON.parse(localStorage.getItem('cb_groups') || '[]');
+        
+        const bankNames = Object.keys(banksData);
+
+        document.getElementById('saved-banks').innerHTML = bankNames.map(b => `<option value="${b}">`).join('');
+        document.getElementById('saved-cats').innerHTML = catsList.map(c => `<option value="${c}">`).join('');
+        document.getElementById('saved-groups').innerHTML = groups.map(g => `<option value="${g}">`).join('');
+        
+        renderDictionary(bankNames, catsList, groups);
+    }
+
+    function updateDatalistsFromInputs() {
+        let banksData = JSON.parse(localStorage.getItem('cb_banks_data') || '{}');
+        let globalCats = new Set(JSON.parse(localStorage.getItem('cb_cats_list') || localStorage.getItem('cb_cats') || '[]'));
+        let groups = new Set(JSON.parse(localStorage.getItem('cb_groups') || '[]'));
+        
+        document.querySelectorAll('.bank-card').forEach(bankEl => {
+            const bName = bankEl.querySelector(`input[id^="bank-name-"]`).value.trim();
+            if (bName) {
+                if (!banksData[bName]) banksData[bName] = { categories: {} };
+                banksData[bName].slots = bankEl.querySelector(`input[id^="bank-slots-"]`).value;
+                banksData[bName].min = bankEl.querySelector(`input[id^="bank-min-"]`).value;
+                banksData[bName].max = bankEl.querySelector(`input[id^="bank-max-"]`).value;
+                if (!banksData[bName].categories) banksData[bName].categories = {};
+
+                bankEl.querySelectorAll('.category-row').forEach(catEl => {
+                    const cName = catEl.querySelector('.c-name').value.trim();
+                    const cGroup = catEl.querySelector('.c-group').value.trim();
+                    if (cName) {
+                        globalCats.add(cName);
+                        banksData[bName].categories[cName] = {
+                            group: cGroup,
+                            min: catEl.querySelector('.c-min').value,
+                            max: catEl.querySelector('.c-max').value,
+                            comment: catEl.querySelector('.c-comment').value.trim()
+                        };
+                        if (cGroup) groups.add(cGroup);
+                    }
+                });
+            }
+        });
+
+        localStorage.setItem('cb_banks_data', JSON.stringify(banksData));
+        localStorage.setItem('cb_cats_list', JSON.stringify([...globalCats]));
+        localStorage.setItem('cb_groups', JSON.stringify([...groups]));
+        
+        updateDatalists();
+    }
+
+    function autofillBank(inputId, bankId) {
+        let name = document.getElementById(inputId).value.trim();
+        let data = JSON.parse(localStorage.getItem('cb_banks_data') || '{}');
+        if(data[name]) {
+            if(data[name].slots) document.getElementById(`bank-slots-${bankId}`).value = data[name].slots;
+            if(data[name].min) document.getElementById(`bank-min-${bankId}`).value = data[name].min;
+            if(data[name].max) document.getElementById(`bank-max-${bankId}`).value = data[name].max;
+        }
+        updateDatalistsFromInputs();
+    }
+
+    function autofillCat(inputEl) {
+        let catName = inputEl.value.trim();
+        let bankCard = inputEl.closest('.bank-card');
+        let bankName = bankCard.querySelector(`input[id^="bank-name-"]`).value.trim();
+
+        if (!bankName) return; 
+
+        let banksData = JSON.parse(localStorage.getItem('cb_banks_data') || '{}');
+        
+        if(banksData[bankName] && banksData[bankName].categories && banksData[bankName].categories[catName]) {
+            let data = banksData[bankName].categories[catName];
+            let row = inputEl.closest('.category-row');
+            if(data.group && !row.querySelector('.c-group').value) row.querySelector('.c-group').value = data.group;
+            if(data.min && !row.querySelector('.c-min').value) row.querySelector('.c-min').value = data.min;
+            if(data.max && !row.querySelector('.c-max').value) row.querySelector('.c-max').value = data.max;
+            if(data.comment && !row.querySelector('.c-comment').value) row.querySelector('.c-comment').value = data.comment;
+        }
+        updateDatalistsFromInputs();
+    }
+
+    function renderDictionary(banks, cats, groups) {
+        const dictSection = document.getElementById('dictionary-section');
+        if (banks.length === 0 && cats.length === 0 && groups.length === 0) {
+            dictSection.style.display = 'none'; return;
+        }
+        dictSection.style.display = 'block';
+
+        const createTag = (text, type) => {
+            const safeText = text.replace(/"/g, '&quot;');
+            return `<div class="dict-tag"><span>${text}</span><button data-val="${safeText}" onclick="removeFromDict('${type}', this.getAttribute('data-val'))">✕</button></div>`;
+        };
+
+        document.getElementById('dict-banks').innerHTML = banks.map(b => createTag(b, 'cb_banks_data')).join('');
+        document.getElementById('dict-cats').innerHTML = cats.map(c => createTag(c, 'cb_cats_list')).join('');
+        document.getElementById('dict-groups').innerHTML = groups.map(g => createTag(g, 'cb_groups')).join('');
+    }
+
+    function removeFromDict(storageKey, valueToRemove) {
+        if (storageKey === 'cb_groups') {
+            let items = JSON.parse(localStorage.getItem(storageKey) || '[]');
+            items = items.filter(item => item !== valueToRemove);
+            localStorage.setItem(storageKey, JSON.stringify(items));
+        } else if (storageKey === 'cb_cats_list') {
+            let items = JSON.parse(localStorage.getItem(storageKey) || '[]');
+            items = items.filter(item => item !== valueToRemove);
+            localStorage.setItem(storageKey, JSON.stringify(items));
+
+            let banksData = JSON.parse(localStorage.getItem('cb_banks_data') || '{}');
+            for (let b in banksData) {
+                if (banksData[b].categories && banksData[b].categories[valueToRemove]) {
+                    delete banksData[b].categories[valueToRemove];
+                }
+            }
+            localStorage.setItem('cb_banks_data', JSON.stringify(banksData));
+        } else if (storageKey === 'cb_banks_data') {
+            let data = JSON.parse(localStorage.getItem(storageKey) || '{}');
+            delete data[valueToRemove];
+            localStorage.setItem(storageKey, JSON.stringify(data));
+        }
+        updateDatalists();
+    }
+
+    function addBank() {
+        bankIdCounter++;
+        const bankHtml = `
+            <div class="bank-card" id="bank-${bankIdCounter}">
+                <div class="bank-header">
+                    <input type="text" placeholder="Название банка" id="bank-name-${bankIdCounter}" list="saved-banks" onchange="autofillBank(this.id, ${bankIdCounter})" style="font-weight: bold; font-size: 16px; flex: 2; min-width: 150px;">
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                        <span style="font-size: 14px;">Мест:</span>
+                        <input type="number" id="bank-slots-${bankIdCounter}" value="3" min="1" style="width: 50px;" onchange="updateDatalistsFromInputs()">
+                        <input type="number" id="bank-min-${bankIdCounter}" placeholder="Мин. траты (руб)" style="width: 140px;" onchange="updateDatalistsFromInputs()">
+                        <input type="number" id="bank-max-${bankIdCounter}" placeholder="Макс. кэшбэк (руб)" style="width: 140px;" onchange="updateDatalistsFromInputs()">
+                        <button class="btn-remove" onclick="document.getElementById('bank-${bankIdCounter}').remove()">✕</button>
+                    </div>
+                </div>
+                <div id="categories-${bankIdCounter}"></div>
+                <button class="btn-add" onclick="addCategory(${bankIdCounter})">+ Категория</button>
+            </div>
+        `;
+        document.getElementById('banks-container').insertAdjacentHTML('beforeend', bankHtml);
+        // ВАЖНО: Эта строчка и была причиной ошибки в прошлом коде. Она добавляет пустую категорию.
+        addCategory(bankIdCounter);
+    }
+
+    function addCategory(bankId) {
+        catIdCounter++;
+        const catHtml = `
+            <div class="category-row" id="cat-${catIdCounter}">
+                <input type="text" class="c-name" placeholder="Название (напр. Аптеки)" list="saved-cats" onchange="autofillCat(this)">
+                <input type="number" class="c-percent" placeholder="%">
+                <input type="text" class="c-group" placeholder="Группа (сравнение)" list="saved-groups" onchange="updateDatalistsFromInputs()">
+                <input type="number" class="c-min c-money" placeholder="Мин. траты" onchange="updateDatalistsFromInputs()">
+                <input type="number" class="c-max c-money" placeholder="Макс. руб" onchange="updateDatalistsFromInputs()">
+                <input type="text" class="c-comment" placeholder="Комментарий (условия)" onchange="updateDatalistsFromInputs()">
+                <button class="btn-remove" onclick="document.getElementById('cat-${catIdCounter}').remove()">✕</button>
+            </div>
+        `;
+        document.getElementById(`categories-${bankId}`).insertAdjacentHTML('beforeend', catHtml);
+    }
+
+    function analyze() {
+        appState.banks = [];
+        appState.month = document.getElementById('report-month').value;
+        const bankElements = document.querySelectorAll('.bank-card');
+        
+        bankElements.forEach(bankEl => {
+            const id = bankEl.id;
+            const name = bankEl.querySelector(`input[id^="bank-name-"]`).value.trim() || 'Неизвестный банк';
+            const slots = parseInt(bankEl.querySelector(`input[id^="bank-slots-"]`).value) || 0;
+            const bankMin = bankEl.querySelector(`input[id^="bank-min-"]`).value;
+            const bankMax = bankEl.querySelector(`input[id^="bank-max-"]`).value;
+            
+            let categories = [];
+            bankEl.querySelectorAll('.category-row').forEach(catEl => {
+                const cId = catEl.id;
+                const cName = catEl.querySelector('.c-name').value.trim();
+                const cGroup = catEl.querySelector('.c-group').value.trim() || cName;
+                const cPercent = parseFloat(catEl.querySelector('.c-percent').value) || 0;
+                const cMin = catEl.querySelector('.c-min').value;
+                const cMax = catEl.querySelector('.c-max').value;
+                const cComment = catEl.querySelector('.c-comment').value.trim();
+
+                if (cName && cPercent > 0) {
+                    categories.push({ id: cId, name: cName, group: cGroup.toLowerCase(), percent: cPercent, min: cMin, max: cMax, comment: cComment, bankId: id, bankName: name, bankMin, bankMax });
+                }
+            });
+            appState.banks.push({ id, name, maxSlots: slots, bankMin, bankMax, categories });
+        });
+
+        updateDatalistsFromInputs();
+        document.getElementById('setup-screen').style.display = 'none';
+        document.getElementById('results').style.display = 'block';
+        renderRecommendations();
+    }
+
+    function renderRecommendations() {
+        const container = document.getElementById('recommendations-container');
+        container.innerHTML = '';
+        
+        let slotsUsed = {};
+        let groupedOffers = {};
+
+        appState.banks.forEach(bank => {
+            slotsUsed[bank.id] = 0;
+            bank.categories.forEach(cat => {
+                if (appState.selections.has(cat.id)) slotsUsed[bank.id]++;
+                if (!groupedOffers[cat.group]) groupedOffers[cat.group] = [];
+                groupedOffers[cat.group].push(cat);
+            });
+        });
+
+        document.getElementById('bank-limits-status').innerHTML = appState.banks.map(b => 
+            `<span style="color: ${slotsUsed[b.id] >= b.maxSlots ? '#e74c3c' : '#27ae60'}">${b.name}: ${slotsUsed[b.id]}/${b.maxSlots}</span>`
+        ).join(' | ');
+
+        const sortedGroups = Object.keys(groupedOffers).sort((a, b) => Math.max(...groupedOffers[b].map(o => o.percent)) - Math.max(...groupedOffers[a].map(o => o.percent)));
+
+        sortedGroups.forEach(groupName => {
+            const offers = groupedOffers[groupName].sort((a, b) => b.percent - a.percent);
+            let groupHtml = `<div class="result-group"><h3 style="margin-top:0; text-transform: capitalize; color: #f39c12;">${groupName}</h3>`;
+
+            offers.forEach(offer => {
+                const isSelected = appState.selections.has(offer.id);
+                const bank = appState.banks.find(b => b.id === offer.bankId);
+                const isDisabled = !isSelected && (slotsUsed[bank.id] >= bank.maxSlots);
+
+                let details = [];
+                if (offer.min) details.push(`Мин. траты: ${offer.min}₽`);
+                if (offer.max) details.push(`Макс. кэшбэк: ${offer.max}₽`);
+                if (offer.comment) details.push(`ℹ️ ${offer.comment}`);
+                
+                groupHtml += `
+                    <div class="offer-row ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}">
+                        <div style="flex: 1;">
+                            <div style="font-size: 16px;"><strong>${offer.percent}%</strong> — ${offer.bankName} (${offer.name})</div>
+                            ${details.length > 0 ? `<div class="offer-details">${details.join(' | ')}</div>` : ''}
+                        </div>
+                        <input type="checkbox" style="transform: scale(1.5); margin-left: 15px; cursor: pointer;" 
+                            ${isSelected ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}
+                            onchange="toggleSelection('${offer.id}')">
+                    </div>`;
+            });
+            groupHtml += `</div>`;
+            container.insertAdjacentHTML('beforeend', groupHtml);
+        });
+    }
+
+    function toggleSelection(offerId) {
+        appState.selections.has(offerId) ? appState.selections.delete(offerId) : appState.selections.add(offerId);
+        renderRecommendations();
+    }
+
+    function generateReport() {
+        document.getElementById('results').style.display = 'none';
+        document.getElementById('memo-report').style.display = 'block';
+        
+        const container = document.getElementById('memo-content');
+        let rawMonth = appState.month;
+        let displayMonth = rawMonth ? new Date(rawMonth + '-01').toLocaleString('ru', { month: 'long', year: 'numeric' }) : 'Текущий месяц';
+        
+        let html = `<h2 style="text-align: center; color: #2c3e50; margin-top: 0;" id="memo-title">Памятка кэшбэка (${displayMonth})</h2>`;
+        
+        let catsObj = {}; 
+        appState.banks.forEach(bank => {
+            bank.categories.filter(c => appState.selections.has(c.id)).forEach(cat => {
+                if (!catsObj[cat.name]) catsObj[cat.name] = [];
+                catsObj[cat.name].push({ bankName: bank.name, bankMin: bank.bankMin, bankMax: bank.bankMax, ...cat });
+            });
+        });
+
+        appState.memoData = []; 
+
+        if (Object.keys(catsObj).length === 0) {
+            container.innerHTML = html + `<p style="text-align:center;">Вы не выбрали ни одной категории.</p>`;
+            return;
+        }
+
+        const sortedCatNames = Object.keys(catsObj).sort();
+
+        sortedCatNames.forEach(catName => {
+            html += `<div class="memo-category-section">
+                        <div class="memo-category-title">🛒 ${catName}</div>`;
+            
+            catsObj[catName].sort((a, b) => b.percent - a.percent).forEach(offer => {
+                appState.memoData.push(offer);
+
+                let meta = [];
+                if (offer.min) meta.push(`От: ${offer.min}₽`);
+                if (offer.max) meta.push(`До: ${offer.max}₽`);
+                if (offer.bankMin) meta.push(`Мин. по карте: ${offer.bankMin}₽`);
+
+                html += `
+                    <div class="memo-item">
+                        <div class="memo-bank-title">
+                            <span>🏦 ${offer.bankName}</span>
+                            <span class="memo-percent">${offer.percent}%</span>
+                        </div>
+                        ${meta.length > 0 ? `<div class="memo-meta">Условия: ${meta.join(' | ')}</div>` : ''}
+                        ${offer.comment ? `<div class="memo-comment">${offer.comment}</div>` : ''}
+                    </div>
+                `;
+            });
+            html += `</div>`;
+        });
+        
+        container.innerHTML = html;
+    }
+
+    function copyMemoText() {
+        let text = document.getElementById('memo-title').innerText + "\n\n";
+        
+        let currentCat = "";
+        appState.memoData.forEach(offer => {
+            if (offer.name !== currentCat) {
+                currentCat = offer.name;
+                text += `🛒 ${currentCat.toUpperCase()}\n`;
+            }
+            
+            let conds = [];
+            if (offer.min) conds.push(`от ${offer.min}₽`);
+            if (offer.max) conds.push(`макс ${offer.max}₽`);
+            if (offer.comment) conds.push(`${offer.comment}`);
+            
+            let condsStr = conds.length > 0 ? ` (${conds.join(', ')})` : '';
+            text += `  💳 ${offer.percent}% — ${offer.bankName}${condsStr}\n`;
+        });
+
+        navigator.clipboard.writeText(text).then(() => {
+            showToast("Скопировано в буфер обмена!");
+        });
+    }
+
+    function exportToCSV() {
+        let csvContent = "\uFEFFКатегория;Банк;Процент(%);Мин.траты;Макс.сумма;Комментарий\n";
+        
+        appState.memoData.forEach(offer => {
+            const row = [
+                `"${offer.name.replace(/"/g, '""')}"`,
+                `"${offer.bankName.replace(/"/g, '""')}"`,
+                offer.percent,
+                offer.min || '',
+                offer.max || '',
+                `"${(offer.comment || '').replace(/"/g, '""')}"`
+            ];
+            csvContent += row.join(';') + "\n";
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        let displayMonth = appState.month || 'тек_месяц';
+        
+        link.setAttribute("href", url);
+        link.setAttribute("download", `cashback_${displayMonth}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    function backToSetup() { document.getElementById('results').style.display = 'none'; document.getElementById('setup-screen').style.display = 'block'; }
+    function backToResults() { document.getElementById('memo-report').style.display = 'none'; document.getElementById('results').style.display = 'block'; }
+</script>
+
+</body>
+</html>
