@@ -34,7 +34,7 @@
 
 **Вариант 1: Использование онлайн (Рекомендуется)**
 Просто откройте страницу проекта (размещено через GitHub Pages):
-👉 `[https://vadimlevo.github.io/Cashback-Analyzer/]`
+👉 `[Cashback Analyzer](https://vadimlevo.github.io/Cashback-Analyzer/)`
 
 **Вариант 2: Использование офлайн**
 1. Скачайте файл `index.html` из этого репозитория.
