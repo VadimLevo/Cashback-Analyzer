@@ -114,7 +114,7 @@
             <button class="btn-export" onclick="document.getElementById('csv-file-input').click()" style="font-size: 16px; padding: 12px; flex: 1; min-width: 160px; background: #fff;">📂 Импорт CSV</button>
         </div>
         
-        <input type="file" id="csv-file-input" accept=".csv" style="display: none;" onchange="handleFileSelect(event)">
+        <input type="file" id="csv-file-input" accept=".csv, text/csv, text/plain, application/vnd.ms-excel" style="display: none;" onchange="handleFileSelect(event)">
 
         <button class="btn-analyze" onclick="analyze()">Сравнить категории</button>
 
