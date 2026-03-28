@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Анализатор кэшбэка</title>
+    
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#3498db">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
+
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; color: #333; padding: 20px; max-width: 900px; margin: 0 auto; }
         h1 { color: #2c3e50; display: inline-block; margin-right: 15px; }
@@ -104,7 +109,13 @@
         
         <div id="banks-container" style="margin-top: 20px;"></div>
         
-        <button class="btn-add" onclick="addBank()" style="font-size: 16px; padding: 10px 20px;">+ Добавить банк</button>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px;">
+            <button class="btn-add" onclick="addBank()" style="font-size: 16px; padding: 12px; flex: 1; min-width: 160px;">+ Добавить банк</button>
+            <button class="btn-export" onclick="document.getElementById('csv-file-input').click()" style="font-size: 16px; padding: 12px; flex: 1; min-width: 160px; background: #fff;">📂 Импорт CSV</button>
+        </div>
+        
+        <input type="file" id="csv-file-input" accept=".csv" style="display: none;" onchange="handleFileSelect(event)">
+
         <button class="btn-analyze" onclick="analyze()">Сравнить категории</button>
 
         <div class="dict-manager" id="dictionary-section" style="display: none;">
@@ -157,7 +168,25 @@
         setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 3000);
     }
 
-    // --- ЛОГИКА DRAG AND DROP ИМПОРТА ---
+    // --- ЛОГИКА ИМПОРТА CSV (Кнопка + Drag&Drop) ---
+    function handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        if (!file.name.endsWith('.csv')) {
+            showToast('Пожалуйста, выберите файл в формате .csv');
+            event.target.value = ''; // Сбрасываем выбор
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            processCSVImport(e.target.result);
+            event.target.value = ''; // Сбрасываем инпут, чтобы можно было загрузить этот же файл повторно
+        };
+        reader.readAsText(file);
+    }
+
     let dragCounter = 0;
     window.addEventListener('dragenter', (e) => {
         e.preventDefault();
@@ -196,17 +225,14 @@
 
     function processCSVImport(csvText) {
         try {
-            // Очищаем от Windows-переносов \r и разбиваем по строкам
             const lines = csvText.replace(/\r/g, '').trim().split('\n');
             let parsedData = [];
             
-            // Начинаем с 1, чтобы пропустить строку заголовков
             for (let i = 1; i < lines.length; i++) {
-                if (!lines[i].trim()) continue; // Пропуск пустых строк
+                if (!lines[i].trim()) continue; 
                 
                 const row = lines[i].split(';');
                 if (row.length >= 6) {
-                    // Склеиваем комментарий обратно, если внутри него случайно оказались ';'
                     let comment = row.slice(5).join(';');
                     
                     parsedData.push({
@@ -225,38 +251,32 @@
                 return;
             }
 
-            // Очищаем интерфейс
             document.getElementById('banks-container').innerHTML = '';
             let banksMap = {}; 
-            // Берем профили банков из памяти, чтобы подтянуть лимиты, которых нет в CSV
             let banksData = JSON.parse(localStorage.getItem('cb_banks_data') || '{}');
 
             parsedData.forEach(row => {
                 let currentBankId;
                 
-                // Если банк еще не добавлен на экран — добавляем
                 if (!banksMap[row.bank]) {
-                    addBank(); // Теперь эта функция исправно создает банк И пустую категорию
+                    addBank();
                     currentBankId = bankIdCounter;
                     banksMap[row.bank] = currentBankId;
                     
                     let bankInput = document.getElementById(`bank-name-${currentBankId}`);
                     bankInput.value = row.bank;
                     
-                    // Восстанавливаем лимиты банка из памяти (если они есть)
                     if(banksData[row.bank]) {
                         if(banksData[row.bank].slots) document.getElementById(`bank-slots-${currentBankId}`).value = banksData[row.bank].slots;
                         if(banksData[row.bank].min) document.getElementById(`bank-min-${currentBankId}`).value = banksData[row.bank].min;
                         if(banksData[row.bank].max) document.getElementById(`bank-max-${currentBankId}`).value = banksData[row.bank].max;
                     }
                     
-                    // Заполняем первую (автоматически созданную) строку категории
                     let catsContainer = document.getElementById(`categories-${currentBankId}`);
                     let catRow = catsContainer.querySelector('.category-row');
                     
                     fillCategoryRowFromCSV(catRow, row, banksData);
                 } else {
-                    // Если банк уже есть — просто добавляем к нему новую категорию
                     currentBankId = banksMap[row.bank];
                     addCategory(currentBankId);
                     let catsRows = document.getElementById(`categories-${currentBankId}`).querySelectorAll('.category-row');
@@ -264,7 +284,6 @@
                 }
             });
 
-            // Один раз синхронизируем всё введенное с памятью (чтобы обновить словари)
             updateDatalistsFromInputs();
             showToast(`Успешно загружено категорий: ${parsedData.length}`);
 
@@ -283,7 +302,6 @@
         rowEl.querySelector('.c-max').value = rowData.max;
         rowEl.querySelector('.c-comment').value = rowData.comment;
         
-        // Пытаемся восстановить поле "Группа" из памяти, так как в CSV его нет
         if(banksData[rowData.bank] && banksData[rowData.bank].categories && banksData[rowData.bank].categories[rowData.cat]) {
             let data = banksData[rowData.bank].categories[rowData.cat];
             if(data.group && !rowEl.querySelector('.c-group').value) {
@@ -291,7 +309,7 @@
             }
         }
     }
-    // --- КОНЕЦ ЛОГИКИ DRAG AND DROP ---
+    // --- КОНЕЦ ЛОГИКИ ИМПОРТА ---
 
     function updateDatalists() {
         const banksData = JSON.parse(localStorage.getItem('cb_banks_data') || '{}');
@@ -437,7 +455,6 @@
             </div>
         `;
         document.getElementById('banks-container').insertAdjacentHTML('beforeend', bankHtml);
-        // ВАЖНО: Эта строчка и была причиной ошибки в прошлом коде. Она добавляет пустую категорию.
         addCategory(bankIdCounter);
     }
 
@@ -659,6 +676,15 @@
 
     function backToSetup() { document.getElementById('results').style.display = 'none'; document.getElementById('setup-screen').style.display = 'block'; }
     function backToResults() { document.getElementById('memo-report').style.display = 'none'; document.getElementById('results').style.display = 'block'; }
+
+    // Регистрация Service Worker для PWA
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(registration => console.log('ServiceWorker зарегистрирован', registration.scope))
+                .catch(err => console.log('Ошибка регистрации ServiceWorker', err));
+        });
+    }
 </script>
 
 </body>
